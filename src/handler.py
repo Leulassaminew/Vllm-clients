@@ -23,8 +23,8 @@ async def handler(job):
     j=job["input"]
     messages=j["messages"][-1]
     messages=messages["content"]
-    count_usage=j["count_usage"]
-    score=j["score"]
+    count_usage=j.pop("count_usage")
+    score=j.pop("score")
     model,tokenize=load_model()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     encoded_input = tokenize(messages, return_tensors='pt')
@@ -58,7 +58,7 @@ async def handler(job):
     results_generator = vllm_engine.generate(job_input)
     async for batch in results_generator:
         yield batch
-        
+
 runpod.serverless.start(
     {
         "handler": handler,
@@ -66,3 +66,4 @@ runpod.serverless.start(
         "return_aggregate_stream": True,
     }
 )
+       
