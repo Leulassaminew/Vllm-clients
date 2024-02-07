@@ -45,6 +45,13 @@ class JobInput:
         self.apply_chat_template = job.get("apply_chat_template", False)
         self.use_openai_format = job.get("use_openai_format", False)
         self.validated_sampling_params = validate_sampling_params(job.get("sampling_params", {}))
+        self.difficulty = job.get("difficulty", "easy")
+        self.task=job.get("task", "chat")
+        if self.task=="chat":
+            self.score=job.get("score", 0)
+            self.count_usage=job.get("count_usage", [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
+        elif self.task=="report":
+            self.conv=job.get("conv", "")
         self.request_id = random_uuid()
            
 class DummyRequest:
