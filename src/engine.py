@@ -61,7 +61,7 @@ class vLLMEngine:
         async for batch in generator(**generator_args):
             yield batch
 
-    async def generate_vllm(self, llm_input, validated_sampling_params, batch_size, stream, apply_chat_template, score , difficulty, character, request_id: str) -> AsyncGenerator[dict, None]:
+    async def generate_vllm(self, llm_input, validated_sampling_params, batch_size, stream, apply_chat_template, score , difficulty, character, count_usage, request_id: str) -> AsyncGenerator[dict, None]:
         charact={
         "Anabal":"""
         If the proposed insurance deal is not ordinary and unrealistic always call them out and decline the offer.you are going to converse with an insurance sales man via text.
@@ -325,8 +325,10 @@ class vLLMEngine:
             token_counters["batch"] += 1
 
         if token_counters["batch"] > 0:
+            batch["results"]={"score":score,"count_usage":count_usage}
             batch["usage"] = {"input": n_input_tokens, "output": token_counters["total"]}
             yield batch
+        
     async def generate_report(self, validated_sampling_params, batch_size, stream, apply_chat_template, conv,request_id: str) -> AsyncGenerator[dict, None]:
         promp="""
         ### Instruction:\n Write a report on the sales techniques used by user and list out his strengths and weaknesses and improvment techniques in this conversation between an insurance sales man named user and  Anabal:\n
