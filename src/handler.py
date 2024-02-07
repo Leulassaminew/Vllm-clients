@@ -20,9 +20,9 @@ model=None
 tokenize=None
 
 async def handler(job):
-    messages=job_input["messages"][-1]
+    messages=job["input"]["messages"][-1]
     messages=messages["content"]
-    count_usage=job_input["count_usage"]
+    count_usage=job["input"]["count_usage"]
     model,tokenize=load_model()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     encoded_input = tokenize(messages, return_tensors='pt')
@@ -50,6 +50,7 @@ async def handler(job):
             else:
                 score+=1
     job["input"]["score"]=score
+    job["input"]["count_usage"]=count_usage
     job_input = JobInput(job["input"])
     results_generator = vllm_engine.generate(job_input)
     async for batch in results_generator:
