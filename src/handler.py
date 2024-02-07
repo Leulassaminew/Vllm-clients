@@ -23,6 +23,7 @@ async def handler(job):
     messages=job["input"]["messages"][-1]
     messages=messages["content"]
     count_usage=job["input"]["count_usage"]
+    score=job["input"]["score"]
     model,tokenize=load_model()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     encoded_input = tokenize(messages, return_tensors='pt')
