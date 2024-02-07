@@ -44,6 +44,7 @@ async def handler(job):
             score-=1
         else:
             score=0
+        count_usage[14]+=1
     else:
         for item in ind:
             if count_usage[item]==0:
