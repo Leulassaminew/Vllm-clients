@@ -50,6 +50,7 @@ class JobInput:
         if self.task=="chat":
             self.score=job.get("score", 0)
             self.count_usage=job.get("count_usage", [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0])
+            self.character=job.get("character","anabal")
         elif self.task=="report":
             self.conv=job.get("conv", "")
         self.request_id = random_uuid()
