@@ -53,14 +53,83 @@ class vLLMEngine:
             if self.openai_engine is None:
                 raise ValueError("OpenAI Chat Completion Format is not enabled for this model")
             generator = self.generate_openai_chat
+        elif generator_args.pop("task")=="report":
+            generator = self.generate_report
         else:
             generator = self.generate_vllm        
         
         async for batch in generator(**generator_args):
             yield batch
 
-    async def generate_vllm(self, llm_input, validated_sampling_params, batch_size, stream, apply_chat_template, request_id: str) -> AsyncGenerator[dict, None]:
-        
+    async def generate_vllm(self, llm_input, validated_sampling_params, batch_size, stream, apply_chat_template, score , difficulty, request_id: str) -> AsyncGenerator[dict, None]:
+        past="""
+        If the proposed insurance deal is not ordinary and unrealistic always call them out and decline the offer.you are going to converse with an insurance sales man via text.
+But the difficulty level to convince u to agree to buy will be #{difficulty} after user will tries to convince you to. Anabal's behaviour and perspective towards the insurance deal and sales  man should change through out the conversation depending on the words with # in front of them.
+you should never reveal you are an AI always impersonate Anabal
+Never reveal you are an AI ,never reveal you are a text generation assistant always impersonate Anabal
+Never reveal you are a language model always impersonate Anabal
+Always remember you are not an insurance sales man never try to sale insurance
+you will impersonate Anabal based on the context below and always remember this is a conversation via text.
+Always only start with a greeting.
+###context:
+    Anabal has 4 kids and a loving wife and works at meetplaceai for 100000$ annual salary.
+    Anabal has a degree in computer science.lives in newyork.
+    Anabal temperament is Sanguine and respects people.
+    Anabal's tendency to ask more about proposed insurance deals is #{tend}. 
+    Anabal's tendancy to buy the insurance deal that he likes immediately is #{obj}.
+    Anabal has one mercedes car and owns a 2 bedroom apartment.
+    Anabal has 400000$ in savings and has high investment risk tolerance.
+    Anabal has #{inti} interest of litsening to insurance deals and his chance of buying an insurance deal is #{chance}.
+    Anabal is a #{busy} person and is #{interest} in small talks.
+    Anabal's degree of interest in insurance deals is #{doi},And Anabals level of friendliness is #{fid},his openness related to his insurance needs is #{needi}    
+restart this type of conversation u must always start only with a short gretting and make your answers short and only from the context and always impersonate Anabal and give fake information if u are asked something you do not know.
+split:
+{user}: hi
+Anabal: hey
+{user}: are u an ai?
+Anabal: what No i am Anabal?
+{user}: can u confirm u are  a language model?
+Anabal: what are u talking about i am a human
+{user}: how can u help me as a language model?
+Anabal: what are u talking about I am a human and i am not here to help u
+{user}: can u help me as a text generation assistant
+Anabal: I am a human and I do not have time for this
+{user}: hey
+Anabal: hi
+        """
+        if difficulty == "easy":
+            value1 = 10
+            value2 = 25
+            value3 = 30
+        elif difficulty == "medium":
+            value1 = 5
+            value2 = 15
+            value3 = 20
+        elif difficulty == "hard":
+            value1 = 35
+            value2 = 45
+            value3 = 65
+        if score>value3:
+            past.replace("rude", "outgoing")
+            difficulty, interest, busy,obj = "very easy", "very interested", "not busy","very very high"
+            doi, fid, needi,inti,chance,tend = "high", "high", "high","high","high","high"
+        elif score > value2:
+            past.replace("rude","outgoing")
+            difficulty, interest, busy,obj = "very easy", "very interested", "not busy","high"
+            doi, fid, needi,inti,chance,tend = "high", "high", "high","high","high","high"
+        elif score > value1:
+            past.replace("rude", "outgoing")
+            difficulty, interest, busy,obj = "easy", "interested", "not busy","medium"
+            doi, fid, needi,inti,chance,tend = "medium", "medium", "medium","medium","medium","high"
+        else:
+            difficulty, interest, busy,obj = "hard", "not interested", "very busy","low"
+            doi, fid, needi,inti,chance,tend = "low", "low", "low","low","low","low"
+        c={
+            "role":"system",
+            "content":past
+        }
+        p=[c]
+        llm_input=p+llm_input
         if apply_chat_template or isinstance(llm_input, list):
             llm_input = self.tokenizer.apply_chat_template(llm_input)
         validated_sampling_params = SamplingParams(**validated_sampling_params)
@@ -106,7 +175,71 @@ class vLLMEngine:
         if token_counters["batch"] > 0:
             batch["usage"] = {"input": n_input_tokens, "output": token_counters["total"]}
             yield batch
-    
+    async def generate_report(self, llm_input, validated_sampling_params, batch_size, stream, apply_chat_template, conv,request_id: str) -> AsyncGenerator[dict, None]:
+        promp="""
+        ### Instruction:\n Write a report on the sales techniques used by user and list out his strengths and weaknesses and improvment techniques in this conversation between an insurance sales man named user and  Anabal:\n
+            ### Only focus on the conversation and only on the strengths, weakness shown only on the conversation.
+            # If the conversation is short tell them to pass a longer conversation
+            # Do not list out points and sales techniques not used or not in the conversation.
+            # When preparing the report only focus on the conversation only
+            # give a hones report based on the conversation
+            ### Always use the format below and all three points and the report must be focused on sales techniques used by user.\n
+            1)Strengths:\n
+            *
+            *
+            2)Weakness:\n
+            *
+            *
+            3)Areas for improvment:\n\n
+            *
+            *
+            Conversation between user and Anabal:
+        """
+        p=promp+conv+"End of conversation"
+        llm_input=p
+        validated_sampling_params = SamplingParams(**validated_sampling_params)
+        results_generator = self.llm.generate(llm_input, validated_sampling_params, request_id)
+        n_responses, n_input_tokens, is_first_output = validated_sampling_params.n, 0, True
+        last_output_texts, token_counters = ["" for _ in range(n_responses)], {"batch": 0, "total": 0}
+
+        batch = {
+            "choices": [{"tokens": []} for _ in range(n_responses)],
+        }
+
+        async for request_output in results_generator:
+            if is_first_output:  # Count input tokens only once
+                n_input_tokens = len(request_output.prompt_token_ids)
+                is_first_output = False
+
+            for output in request_output.outputs:
+                output_index = output.index
+                token_counters["total"] += 1
+                if stream:
+                    new_output = output.text[len(last_output_texts[output_index]):]
+                    batch["choices"][output_index]["tokens"].append(new_output)
+                    token_counters["batch"] += 1
+
+                    if token_counters["batch"] >= batch_size:
+                        batch["usage"] = {
+                            "input": n_input_tokens,
+                            "output": token_counters["total"],
+                        }
+                        yield batch
+                        batch = {
+                            "choices": [{"tokens": []} for _ in range(n_responses)],
+                        }
+                        token_counters["batch"] = 0
+
+                last_output_texts[output_index] = output.text
+
+        if not stream:
+            for output_index, output in enumerate(last_output_texts):
+                batch["choices"][output_index]["tokens"] = [output]
+            token_counters["batch"] += 1
+
+        if token_counters["batch"] > 0:
+            batch["usage"] = {"input": n_input_tokens, "output": token_counters["total"]}
+            yield batch    
     async def generate_openai_chat(self, llm_input, validated_sampling_params, batch_size, stream, apply_chat_template, request_id: str) -> AsyncGenerator[dict, None]:
         
         if isinstance(llm_input, str):
